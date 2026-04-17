@@ -1,11 +1,10 @@
 from reportlab.lib.pagesizes import letter
-from reportlab.lib.colors import HexColor
 from reportlab.pdfgen import canvas
-from reportlab.lib import colors
 import qrcode
 import io
 import os
 from datetime import datetime
+import hashlib
 
 def generate_invoice(customer_name, items, total_btc):
     # Crear un buffer para el PDF
@@ -13,10 +12,9 @@ def generate_invoice(customer_name, items, total_btc):
     c = canvas.Canvas(pdf_buffer, pagesize=letter)
 
     # Datos de la factura
-    invoice_id = "INV-001"
-    btc_address = "bc1q89n24sgwjed5detp8q0upx5wpmuu4jt3e5e9c4"  # Dirección de ejemplo
+    invoice_id = hashlib.sha256(f"{customer_name}{datetime.now().timestamp()}".encode()).hexdigest()[:8]
+    btc_address = "3FZbgi29cpjq2GjdwV8eyHuJJnkLtktZc5"  # Dirección de ejemplo
     current_date = datetime.now().strftime("%Y-%m-%d")
-    
 
     # --- Generar el QR con la dirección Bitcoin, monto e ID de factura ---
     qr = qrcode.QRCode(
@@ -31,14 +29,10 @@ def generate_invoice(customer_name, items, total_btc):
     qr_img = qr.make_image(fill_color="black", back_color="white")
 
     # --- Guardar el QR en un archivo temporal ---
-    qr_temp_path = "temp_qr.png"  # Asegúrate de que esta línea no tenga espacios adicionales al inicio
+    qr_temp_path = "temp_qr.png"
     qr_img.save(qr_temp_path)
 
-    # Resto del código...
-    
-
     # --- Encabezado de la factura ---
-    
     c.setFont("Helvetica-Bold", 16)
     c.drawString(100, 750, f"FACTURA - Bitcoin E-Commerce")
     c.setFont("Helvetica", 12)
@@ -63,30 +57,31 @@ def generate_invoice(customer_name, items, total_btc):
     c.setFont("Helvetica", 10)
     y_position = 580
     for item in items:
-        c.drawString(60, y_position, item["product"]["name"])
+        c.drawString(60, y_position, item["name"])
         c.drawString(250, y_position, str(item["quantity"]))
-        c.drawString(350, y_position, f"{item['product']['price_btc']:.8f}")
-        c.drawString(450, y_position, f"{item['total_btc']:.8f}")
+        c.drawString(350, y_position, f"{item['price_btc']:.8f}")
+        c.drawString(450, y_position, f"{item['total']:.8f}")
         y_position -= 20
 
     # --- Total ---
     c.line(50, y_position + 10, 550, y_position + 10)  # Línea horizontal
     c.setFont("Helvetica-Bold", 12)
-    c.drawString(330, y_position - 10, f"TOTAL A PAGAR:")
+    c.drawString(350, y_position - 10, f"TOTAL A PAGAR:")
     c.drawString(450, y_position - 10, f"{total_btc:.8f} BTC")
 
     # --- Instrucciones de pago ---
     c.setFont("Helvetica-Bold", 12)
     c.drawString(50, y_position - 40, "Instrucciones de Pago:")
     c.setFont("Helvetica", 10)
-    c.drawString(50, y_position - 60, "1. Envía exactamente la cantidad de BTC indicada.")
-    c.drawString(50, y_position - 80, f"2. Dirección de Bitcoin: {btc_address}")
+    c.drawString(50, y_position - 60, "1. Escanea el código QR con tu billetera Bitcoin.")
+    c.drawString(50, y_position - 80, f"2. Verifica que el monto sea {total_btc:.8f} BTC.")
     c.drawString(50, y_position - 100, f"3. Incluye este ID de factura como referencia: {invoice_id}")
 
     # --- Añadir el QR al PDF desde el archivo temporal ---
-    c.drawImage(qr_temp_path, x=350, y=y_position - 150, width=100, height=100, preserveAspectRatio=True)
+    c.drawImage(qr_temp_path, x=350, y=y_position - 150, width=120, height=120, preserveAspectRatio=True)
     c.setFont("Helvetica", 10)
-    c.drawString(350, y_position - 170, "Escanea el QR para pagar con Bitcoin.")
+    c.drawString(350, y_position - 170, f"Escanea el QR para pagar {total_btc:.8f} BTC.")
+    c.drawString(350, y_position - 190, f"ID de factura: {invoice_id}")
 
     # --- Guardar el PDF ---
     c.save()
